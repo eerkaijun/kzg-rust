@@ -5,6 +5,7 @@ use ark_ec::pairing::Pairing;
 pub struct KZG<E: Pairing> {
     pub g1: E::G1,
     pub g2: E::G2,
+    pub g2_tau: E::G2,
     pub degree: usize,
     pub crs: Vec<E::G1>,
 }
@@ -46,6 +47,7 @@ impl <E:Pairing> KZG<E> {
         Self {
             g1,
             g2,
+            g2_tau: g2.mul(E::ScalarField::ZERO),
             degree,
             crs: vec![],
         }
@@ -55,6 +57,7 @@ impl <E:Pairing> KZG<E> {
         for i in 0..self.degree+1 {
             self.crs.push(self.g1.mul(secret.pow(&[i as u64])));
         }
+        self.g2_tau = self.g2.mul(secret);
     }
 
     pub fn commit(&self, poly: &[E::ScalarField]) -> E::G1 {
@@ -99,8 +102,10 @@ impl <E:Pairing> KZG<E> {
         point: E::ScalarField,
         value: E::ScalarField,
         commitment: E::G1,
-        proof: E::G1
+        pi: E::G1
     ) -> bool {
-        false        
+        let lhs = E::pairing(pi, self.g2_tau - self.g2.mul(point));
+        let rhs = E::pairing(commitment - self.g1.mul(value), self.g2);
+        lhs == rhs
     }
 }
