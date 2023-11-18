@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ark-std = "0.4"
 ark-ec = "0.4"
 ark-ff = "0.4"
 ark-bls12-381 = "0.4"
