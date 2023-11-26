@@ -1,7 +1,7 @@
 use std::ops::Mul;
 use ark_ff::Field;
 use ark_ec::pairing::Pairing;
-use crate::utils::{div, evaluate};
+use crate::utils::{div, mul, evaluate, interpolate};
 
 pub struct KZG<E: Pairing> {
     pub g1: E::G1,
@@ -52,6 +52,39 @@ impl <E:Pairing> KZG<E> {
 
         // get quotient by dividing numerator by denominator
         let quotient = div(numerator, &denominator).unwrap();
+
+        // calculate pi as proof (quotient multiplied by CRS)
+        let mut pi = self.g1.mul(E::ScalarField::ZERO);
+        for i in 0..quotient.len() {
+            pi += self.crs[i] * quotient[i];
+        }
+
+        // return pi
+        pi
+    }
+
+    pub fn multi_open(&self, poly: &[E::ScalarField], points: &[E::ScalarField]) -> E::G1 {
+        // denominator is a polynomial where all its root are points to be evaluated (zero poly)
+        let mut zero_poly = vec![-points[0], E::ScalarField::ONE];
+        for i in 1..points.len() {
+            zero_poly = mul(&zero_poly, &[-points[i], E::ScalarField::ONE]);
+        }
+
+        // perform Lagrange interpolation on points
+        let mut values = vec![];
+        for i in 0..points.len() {
+            values.push(evaluate(poly, points[i]));
+        }
+        let lagrange_poly = interpolate(points, &values).unwrap();
+
+        // numerator is the difference between the polynomial and the Lagrange interpolation
+        let mut numerator = Vec::with_capacity(poly.len());
+        for (coeff1, coeff2) in poly.iter().zip(lagrange_poly.as_slice()) {
+            numerator.push(*coeff1 - coeff2);
+        }
+
+        // get quotient by dividing numerator by denominator
+        let quotient = div(&numerator, &zero_poly).unwrap();
 
         // calculate pi as proof (quotient multiplied by CRS)
         let mut pi = self.g1.mul(E::ScalarField::ZERO);

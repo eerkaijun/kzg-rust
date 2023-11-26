@@ -51,6 +51,33 @@ pub fn evaluate<E:Field>(poly: &[E], point: E) -> E {
     for i in 0..poly.len() {
         value += poly[i] * point.pow(&[i as u64]);
     }
-    
+
     value
+}
+
+// helper function toi perform Lagrange interpolation given a set of points
+pub fn interpolate<E:Field>(points: &[E], values: &[E]) -> Result<Vec<E>, &'static str> {
+    if points.len() != values.len() {
+        return Err("Number of points and values do not match");
+    }
+
+    let mut result = vec![E::ZERO; points.len()];
+
+    for i in 0..points.len() {
+        let mut numerator = E::ONE;
+        let mut denominator = E::ONE;
+
+        for j in 0..points.len() {
+            if i == j {
+                continue;
+            }
+
+            numerator *= -points[j];
+            denominator *= points[i] - points[j];
+        }
+
+        result[i] = values[i] * numerator * denominator.inverse().unwrap();
+    }
+
+    Ok(result)
 }
