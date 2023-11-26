@@ -1,5 +1,7 @@
 pub mod kzg;
+pub mod utils;
 use kzg::KZG;
+use utils::evaluate;
 use ark_std::UniformRand;
 use ark_bls12_381::{Bls12_381, Fr, G1Projective as G1, G2Projective as G2};
 
@@ -26,6 +28,8 @@ fn main() {
     let pi = kzg_instance.open(&poly, point);
 
     // verify the proof
-    let value = kzg_instance.evaluate(&poly, point);
+    let value = evaluate(&poly, point);
     assert!(kzg_instance.verify(point, value, commitment, pi));
+
+    println!("Proof verified!");
 }
