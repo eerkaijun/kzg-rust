@@ -8,7 +8,8 @@ pub struct KZG<E: Pairing> {
     pub g2: E::G2,
     pub g2_tau: E::G2,
     pub degree: usize,
-    pub crs: Vec<E::G1>,
+    pub crs_g1: Vec<E::G1>,
+    pub crs_g2: Vec<E::G2>,
 }
 
 impl <E:Pairing> KZG<E> {
@@ -18,13 +19,15 @@ impl <E:Pairing> KZG<E> {
             g2,
             g2_tau: g2.mul(E::ScalarField::ZERO),
             degree,
-            crs: vec![],
+            crs_g1: vec![],
+            crs_g2: vec![],
         }
     }
 
     pub fn setup(&mut self, secret: E::ScalarField) {
         for i in 0..self.degree+1 {
-            self.crs.push(self.g1.mul(secret.pow(&[i as u64])));
+            self.crs_g1.push(self.g1.mul(secret.pow(&[i as u64])));
+            self.crs_g2.push(self.g2.mul(secret.pow(&[i as u64])));
         }
         self.g2_tau = self.g2.mul(secret);
     }
@@ -32,7 +35,7 @@ impl <E:Pairing> KZG<E> {
     pub fn commit(&self, poly: &[E::ScalarField]) -> E::G1 {
         let mut commitment = self.g1.mul(E::ScalarField::ZERO);
         for i in 0..self.degree+1 {
-            commitment += self.crs[i] * poly[i];
+            commitment += self.crs_g1[i] * poly[i];
         }
         commitment
     }
@@ -56,7 +59,7 @@ impl <E:Pairing> KZG<E> {
         // calculate pi as proof (quotient multiplied by CRS)
         let mut pi = self.g1.mul(E::ScalarField::ZERO);
         for i in 0..quotient.len() {
-            pi += self.crs[i] * quotient[i];
+            pi += self.crs_g1[i] * quotient[i];
         }
 
         // return pi
@@ -89,7 +92,7 @@ impl <E:Pairing> KZG<E> {
         // calculate pi as proof (quotient multiplied by CRS)
         let mut pi = self.g1.mul(E::ScalarField::ZERO);
         for i in 0..quotient.len() {
-            pi += self.crs[i] * quotient[i];
+            pi += self.crs_g1[i] * quotient[i];
         }
 
         // return pi
@@ -105,6 +108,39 @@ impl <E:Pairing> KZG<E> {
     ) -> bool {
         let lhs = E::pairing(pi, self.g2_tau - self.g2.mul(point));
         let rhs = E::pairing(commitment - self.g1.mul(value), self.g2);
+        lhs == rhs
+    }
+
+    pub fn verify_multi(
+        &self,
+        points: &[E::ScalarField],
+        values: &[E::ScalarField],
+        commitment: E::G1,
+        pi: E::G1
+    ) -> bool {
+        // compute the zero polynomial
+        let mut zero_poly = vec![-points[0], E::ScalarField::ONE];
+        for i in 1..points.len() {
+            zero_poly = mul(&zero_poly, &[-points[i], E::ScalarField::ONE]);
+        }
+
+        // compute commitment of zero polynomial in regards to crs_g2
+        let mut zero_commitment = self.g2.mul(E::ScalarField::ZERO);
+        for i in 0..zero_poly.len() {
+            zero_commitment += self.crs_g2[i] * zero_poly[i];
+        }
+
+        // compute lagrange polynomial
+        let lagrange_poly = interpolate(points, &values).unwrap();
+
+        // compute commitment of lagrange polynomial in regards to crs_g1
+        let mut lagrange_commitment = self.g1.mul(E::ScalarField::ZERO);
+        for i in 0..lagrange_poly.len() {
+            lagrange_commitment += self.crs_g1[i] * lagrange_poly[i];
+        }
+
+        let lhs = E::pairing(pi, zero_commitment);
+        let rhs = E::pairing(commitment - lagrange_commitment, self.g2);
         lhs == rhs
     }
 }
