@@ -55,7 +55,7 @@ pub fn evaluate<E:Field>(poly: &[E], point: E) -> E {
     value
 }
 
-// helper function toi perform Lagrange interpolation given a set of points
+// helper function to perform Lagrange interpolation given a set of points
 pub fn interpolate<E:Field>(points: &[E], values: &[E]) -> Result<Vec<E>, &'static str> {
     if points.len() != values.len() {
         return Err("Number of points and values do not match");

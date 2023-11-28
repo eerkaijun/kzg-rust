@@ -78,7 +78,8 @@ impl <E:Pairing> KZG<E> {
         for i in 0..points.len() {
             values.push(evaluate(poly, points[i]));
         }
-        let lagrange_poly = interpolate(points, &values).unwrap();
+        let mut lagrange_poly = interpolate(points, &values).unwrap();
+        lagrange_poly.resize(poly.len(), E::ScalarField::ZERO); // pad with zeros
 
         // numerator is the difference between the polynomial and the Lagrange interpolation
         let mut numerator = Vec::with_capacity(poly.len());
