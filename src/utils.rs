@@ -1,5 +1,19 @@
 use ark_ff::Field;
 
+// helper function for polynomial addition
+pub fn add<E:Field>(p1: &[E], p2: &[E]) -> Vec<E> {
+    let mut result = vec![E::ZERO; std::cmp::max(p1.len(), p2.len())];
+
+    for (i, &coeff) in p1.iter().enumerate() {
+        result[i] += coeff;
+    }
+    for (i, &coeff) in p2.iter().enumerate() {
+        result[i] += coeff;
+    }
+
+    result
+}
+
 // helper function for polynomial multiplication
 pub fn mul<E:Field>(p1: &[E], p2: &[E]) -> Vec<E> {
     let mut result = vec![E::ZERO; p1.len() + p2.len() - 1];
@@ -64,7 +78,7 @@ pub fn interpolate<E:Field>(points: &[E], values: &[E]) -> Result<Vec<E>, &'stat
     let mut result = vec![E::ZERO; points.len()];
 
     for i in 0..points.len() {
-        let mut numerator = E::ONE;
+        let mut numerator = vec![E::ONE];
         let mut denominator = E::ONE;
 
         for j in 0..points.len() {
@@ -72,11 +86,14 @@ pub fn interpolate<E:Field>(points: &[E], values: &[E]) -> Result<Vec<E>, &'stat
                 continue;
             }
 
-            numerator *= -points[j];
+            numerator = mul(&numerator, &[-points[j], E::ONE]);
             denominator *= points[i] - points[j];
         }
 
-        result[i] = values[i] * numerator * denominator.inverse().unwrap();
+        let denominator_inv = denominator.inverse().unwrap();
+        let term: Vec<E> = numerator.iter().map(|&x| x * values[i] * denominator_inv).collect();
+
+        result = add(&result, &term);
     }
 
     Ok(result)
