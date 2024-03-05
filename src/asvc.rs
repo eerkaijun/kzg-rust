@@ -16,7 +16,12 @@ impl <E: Pairing> ASVC<E> {
     }
 
     // aggregate multiple proofs into one subvector commitment
-    pub fn verify(&self, proofs: Vec<E::G1>) -> bool {
+    pub fn aggregate(&self, proofs: Vec<E::G1>) {
+
+    }
+
+    // verify a subvector commitment
+    pub fn verify(&self, commitment: E::G1) -> bool {
         false
     }
 
