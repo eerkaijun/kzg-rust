@@ -1,4 +1,5 @@
 pub mod kzg;
+pub mod asvc;
 pub mod utils;
 use kzg::KZG;
 use utils::evaluate;
