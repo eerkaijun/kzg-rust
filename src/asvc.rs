@@ -3,6 +3,18 @@ use ark_ff::Field;
 use ark_ec::pairing::Pairing;
 use crate::utils::interpolate;
 
+pub struct UpdateKey<E: Pairing> {
+    pub a_i: E::G1,
+    pub u_i: E::G1
+}
+
+pub struct ProvingKey<E: Pairing> {
+    pub crs_g1: Vec<E::G1>,
+    pub crs_g2: Vec<E::G2>,
+    pub update_key: UpdateKey<E>,
+    pub l_i: Vec<E::G1>
+}
+
 pub struct ASVC<E: Pairing> {
     pub g1: E::G1,
     pub g2: E::G2,
