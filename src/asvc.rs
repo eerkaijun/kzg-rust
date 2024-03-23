@@ -1,6 +1,7 @@
 use std::ops::Mul;
 use ark_ff::Field;
 use ark_ec::pairing::Pairing;
+use crate::utils::interpolate;
 
 pub struct ASVC<E: Pairing> {
     pub g1: E::G1,
@@ -32,8 +33,19 @@ impl <E: Pairing> ASVC<E> {
         self.g2_tau = self.g2.mul(secret);
     }
 
-    // commit the lagrange basis of the vector
-    pub fn vector_commit(&self, vector: &[E::ScalarField]) {
+    // commit the lagrange polynomial of the vector
+    pub fn vector_commit(&self, vector: &[E::ScalarField]) -> E::G1 {
+        let indices = (1..=vector.len()).map(|i| E::ScalarField::from(i as u64)).collect::<Vec<_>>();
+        let lagrange_poly = interpolate(&indices, vector).unwrap();
+        let mut commitment = self.g1.mul(E::ScalarField::ZERO);
+        for i in 0..self.degree+1 {
+            commitment += self.crs_g1[i] * lagrange_poly[i];
+        }
+        commitment
+    }
+
+    // prove multiple positions in the vector
+    pub fn prove_position(&self, indices: &[E::ScalarField], subvector: &[E::ScalarField]) {
         
     }
 
