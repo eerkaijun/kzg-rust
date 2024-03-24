@@ -15,6 +15,12 @@ pub struct ProvingKey<E: Pairing> {
     pub l_i: Vec<E::G1>
 }
 
+pub struct VerificationKey<E: Pairing> {
+    pub crs_g1: Vec<E::G1>,
+    pub crs_g2: Vec<E::G2>,
+    pub a: E::G1
+}
+
 pub struct ASVC<E: Pairing> {
     pub g1: E::G1,
     pub g2: E::G2,
@@ -25,6 +31,20 @@ pub struct ASVC<E: Pairing> {
 }
 
 impl <E: Pairing> ASVC<E> {
+    pub fn key_gen(g1: E::G1, g2: E::G2, degree: usize, secret: E::ScalarField) {
+        // set up common reference string
+        let mut crs_g1: Vec<E::G1> = Vec::new();
+        let mut crs_g2: Vec<E::G2> = Vec::new();
+        for i in 0..degree+1 {
+            crs_g1.push(g1.mul(secret.pow(&[i as u64])));
+            crs_g2.push(g2.mul(secret.pow(&[i as u64])));
+        }
+
+        // a_commitment is X^n - 1 multiply by G1
+        // TODO: double check if this is correct
+        let a_commit = crs_g1[degree].mul(E::ScalarField::ONE) + crs_g1[0].mul(-E::ScalarField::ONE);
+    }
+
     pub fn new(g1: E::G1, g2: E::G2, degree: usize) -> Self {
         Self {
             g1,
