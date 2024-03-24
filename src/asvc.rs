@@ -1,7 +1,7 @@
 use std::ops::Mul;
 use ark_ff::Field;
 use ark_ec::pairing::Pairing;
-use crate::utils::interpolate;
+use crate::utils::{interpolate, get_omega, div};
 
 pub struct UpdateKey<E: Pairing> {
     pub a_i: E::G1,
@@ -41,8 +41,28 @@ impl <E: Pairing> ASVC<E> {
         }
 
         // a_commitment is X^n - 1 multiply by G1
-        // TODO: double check if this is correct
-        let a_commit = crs_g1[degree].mul(E::ScalarField::ONE) + crs_g1[0].mul(-E::ScalarField::ONE);
+        let a_commit: E::G1 = crs_g1[degree].mul(E::ScalarField::ONE) + crs_g1[0].mul(-E::ScalarField::ONE);
+
+        // a_i is (X^n - 1) / (X - w^i) multiply by G1
+        let mut a_i = vec![g1; degree];
+        // l_i is Lagrange basis for point i, multiply by G1
+        let mut l_i = vec![g1; degree];
+
+        // numerator is X^n - 1
+        let mut numerator = vec![E::ScalarField::ZERO; degree];
+        numerator[0] = -E::ScalarField::ONE;
+        numerator[degree] = E::ScalarField::ONE;
+        for i in 0..degree {
+            // X-w^i
+            let denominator = vec![-get_omega(&numerator).pow([i as u64]), E::ScalarField::ONE];
+            let result = div(&numerator, &denominator).unwrap();
+            // commit according to crs_g1
+            let mut accumulator = crs_g1[0].mul(result[0]);
+            for j in 1..degree {
+                accumulator += crs_g1[j].mul(result[j]);
+            }
+            a_i[i] = accumulator;
+        }
     }
 
     pub fn new(g1: E::G1, g2: E::G2, degree: usize) -> Self {
