@@ -1,4 +1,4 @@
-use std::ops::Mul;
+use std::ops::{Mul, Div};
 use ark_ff::Field;
 use ark_ec::pairing::Pairing;
 use crate::utils::{get_omega, div, scalar_mul};
@@ -64,8 +64,11 @@ impl <E: Pairing> ASVC<E> {
             let ai_denominator = vec![-get_omega(&ai_numerator).pow([i as u64]), E::ScalarField::ONE];
             let ai_polynomial = div(&ai_numerator, &ai_denominator).unwrap(); // TODO: double check if the dimension of ai_polynomial is correct
 
-            // li_polynomial is ai_polynomial / a'(w^i), where a'(w^1) = n * (w ^ (n-1))
-            let li_polynomial = scalar_mul(&ai_polynomial, get_omega(&ai_numerator).pow([i as u64])); // TODO: check correctness on this (power and needs to be divded by n)
+            // li_polynomial is ai_polynomial / a'(w^i), where a'(w^1) = n * (w^i)
+            let li_polynomial = scalar_mul(
+                &ai_polynomial,
+                (get_omega(&ai_numerator).pow([i as u64])).div(E::ScalarField::from(degree as u32))
+            );
 
             // ui_polynomial is (li_polynomial - 1) / (X - w^i) 
             let mut ui_numerator = li_polynomial.clone();
