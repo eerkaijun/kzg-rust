@@ -120,3 +120,12 @@ pub fn get_omega<E:PrimeField>(coefficients: &[E]) -> E {
     }
     omega
 }
+
+// helper function to multiple a polynomial with a scalar value
+pub fn scalar_mul<E:Field>(poly: &[E], scalar: E) -> Vec<E> {
+    let mut result = Vec::with_capacity(poly.len());
+    for coeff in poly {
+        result.push(*coeff * scalar);
+    }
+    result    
+}

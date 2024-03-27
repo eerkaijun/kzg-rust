@@ -1,37 +1,40 @@
 use std::ops::Mul;
 use ark_ff::Field;
 use ark_ec::pairing::Pairing;
-use crate::utils::{interpolate, get_omega, div};
+use crate::utils::{get_omega, div, scalar_mul};
 
+#[derive(Clone)]
+pub struct CRS<E: Pairing> {
+    pub g1: Vec<E::G1>,
+    pub g2: Vec<E::G2>
+}
+
+#[derive(Clone)]
 pub struct UpdateKey<E: Pairing> {
-    pub a_i: E::G1,
-    pub u_i: E::G1
+    pub ai_commitment: Vec<E::G1>,
+    pub ui_commitment: Vec<E::G1>
 }
 
 pub struct ProvingKey<E: Pairing> {
-    pub crs_g1: Vec<E::G1>,
-    pub crs_g2: Vec<E::G2>,
+    pub crs: CRS<E>,
     pub update_key: UpdateKey<E>,
-    pub l_i: Vec<E::G1>
+    pub li_commitment: Vec<E::G1>
 }
 
 pub struct VerificationKey<E: Pairing> {
-    pub crs_g1: Vec<E::G1>,
-    pub crs_g2: Vec<E::G2>,
-    pub a: E::G1
+    pub crs: CRS<E>,
+    pub a_commitment: E::G1
 }
 
 pub struct ASVC<E: Pairing> {
-    pub g1: E::G1,
-    pub g2: E::G2,
-    pub g2_tau: E::G2,
     pub degree: usize,
-    pub crs_g1: Vec<E::G1>,
-    pub crs_g2: Vec<E::G2>
+    pub update_key: UpdateKey<E>,
+    pub proving_key: ProvingKey<E>,
+    pub verification_key: VerificationKey<E>
 }
 
 impl <E: Pairing> ASVC<E> {
-    pub fn key_gen(g1: E::G1, g2: E::G2, degree: usize, secret: E::ScalarField) {
+    pub fn key_gen(g1: E::G1, g2: E::G2, degree: usize, secret: E::ScalarField) -> Self {
         // set up common reference string
         let mut crs_g1: Vec<E::G1> = Vec::new();
         let mut crs_g2: Vec<E::G2> = Vec::new();
@@ -41,57 +44,79 @@ impl <E: Pairing> ASVC<E> {
         }
 
         // a_commitment is X^n - 1 multiply by G1
-        let a_commit: E::G1 = crs_g1[degree].mul(E::ScalarField::ONE) + crs_g1[0].mul(-E::ScalarField::ONE);
+        let a_commitment: E::G1 = crs_g1[degree].mul(E::ScalarField::ONE) + crs_g1[0].mul(-E::ScalarField::ONE);
 
-        // a_i is (X^n - 1) / (X - w^i) multiply by G1
-        let mut a_i = vec![g1; degree];
-        // l_i is Lagrange basis for point i, multiply by G1
-        let mut l_i = vec![g1; degree];
+        // ai_commitment is (X^n - 1) / (X - w^i) multiply by G1
+        let mut ai_commitment = vec![g1; degree];
 
-        // numerator is X^n - 1
-        let mut numerator = vec![E::ScalarField::ZERO; degree];
-        numerator[0] = -E::ScalarField::ONE;
-        numerator[degree] = E::ScalarField::ONE;
+        // li_commitment is Lagrange basis for point i, multiply by G1
+        let mut li_commitment = vec![g1; degree];
+
+        // ui_commitment is the KZG proofs for lagrage basis for point i
+        let mut ui_commitment = vec![g1; degree];
+
+        // ai_numerator is X^n - 1
+        let mut ai_numerator = vec![E::ScalarField::ZERO; degree];
+        ai_numerator[0] = -E::ScalarField::ONE;
+        ai_numerator[degree] = E::ScalarField::ONE;
         for i in 0..degree {
-            // X-w^i
-            let denominator = vec![-get_omega(&numerator).pow([i as u64]), E::ScalarField::ONE];
-            let result = div(&numerator, &denominator).unwrap();
+            // ai_denominator is X-w^i
+            let ai_denominator = vec![-get_omega(&ai_numerator).pow([i as u64]), E::ScalarField::ONE];
+            let ai_polynomial = div(&ai_numerator, &ai_denominator).unwrap(); // TODO: double check if the dimension of ai_polynomial is correct
+
+            // li_polynomial is ai_polynomial / a'(w^i), where a'(w^1) = n * (w ^ (n-1))
+            let li_polynomial = scalar_mul(&ai_polynomial, get_omega(&ai_numerator).pow([i as u64])); // TODO: check correctness on this (power and needs to be divded by n)
+
+            // ui_polynomial is (li_polynomial - 1) / (X - w^i) 
+            let mut ui_numerator = li_polynomial.clone();
+            ui_numerator[0] = ui_numerator[0] - E::ScalarField::ONE;
+            let ui_polynomial = div(&ui_numerator, &ai_denominator).unwrap();
+
             // commit according to crs_g1
-            let mut accumulator = crs_g1[0].mul(result[0]);
+            // TODO: maybe put it into a helper function
+            let mut ai_accumulator = crs_g1[0].mul(ai_polynomial[0]);
+            let mut li_accumulator = crs_g1[0].mul(li_polynomial[0]);
+            let mut ui_accumulator = crs_g1[0].mul(ui_polynomial[0]);
             for j in 1..degree {
-                accumulator += crs_g1[j].mul(result[j]);
+                ai_accumulator += crs_g1[j].mul(ai_polynomial[j]);
+                li_accumulator += crs_g1[j].mul(li_polynomial[j]);
+                ui_accumulator += crs_g1[j].mul(ui_polynomial[j]);
             }
-            a_i[i] = accumulator;
+            ai_commitment[i] = ai_accumulator;
+            li_commitment[i] = li_accumulator;
+            ui_commitment[i] = ui_accumulator;
         }
-    }
 
-    pub fn new(g1: E::G1, g2: E::G2, degree: usize) -> Self {
+        let update_key = UpdateKey {
+            ai_commitment,
+            ui_commitment
+        };
+        let crs = CRS {
+            g1: crs_g1,
+            g2: crs_g2
+        };
+
         Self {
-            g1,
-            g2,
-            g2_tau: g2.mul(E::ScalarField::ZERO),
             degree,
-            crs_g1: vec![],
-            crs_g2: vec![],
+            update_key: update_key.clone(),
+            proving_key: ProvingKey {
+                crs: crs.clone(),
+                update_key: update_key.clone(),
+                li_commitment
+            },
+            verification_key: VerificationKey {
+                crs: crs.clone(),
+                a_commitment
+            }
         }
-    }
-
-    // the `secret` should be generated through secure MPC
-    pub fn setup(&mut self, secret: E::ScalarField) {
-        for i in 0..self.degree+1 {
-            self.crs_g1.push(self.g1.mul(secret.pow(&[i as u64])));
-            self.crs_g2.push(self.g2.mul(secret.pow(&[i as u64])));
-        }
-        self.g2_tau = self.g2.mul(secret);
     }
 
     // commit the lagrange polynomial of the vector
     pub fn vector_commit(&self, vector: &[E::ScalarField]) -> E::G1 {
-        let indices = (1..=vector.len()).map(|i| E::ScalarField::from(i as u64)).collect::<Vec<_>>();
-        let lagrange_poly = interpolate(&indices, vector).unwrap();
-        let mut commitment = self.g1.mul(E::ScalarField::ZERO);
-        for i in 0..self.degree+1 {
-            commitment += self.crs_g1[i] * lagrange_poly[i];
+        // TODO: check that vector length is equal to l_commitment length
+        let mut commitment = self.proving_key.crs.g1[0].mul(E::ScalarField::ZERO);
+        for i in 0..vector.len() {
+            commitment += self.proving_key.li_commitment[i] * vector[i]
         }
         commitment
     }
