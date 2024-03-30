@@ -56,19 +56,18 @@ impl <E: Pairing> ASVC<E> {
         let mut ui_commitment = vec![g1; degree];
 
         // ai_numerator is X^n - 1
-        // TODO: check omega calculation
         let mut ai_numerator = vec![E::ScalarField::ZERO; degree+1];
         ai_numerator[0] = -E::ScalarField::ONE;
         ai_numerator[degree] = E::ScalarField::ONE;
         for i in 0..degree {
             // ai_denominator is X-w^i
-            let ai_denominator = vec![-get_omega(&ai_numerator).pow([i as u64]), E::ScalarField::ONE];
-            let ai_polynomial = div(&ai_numerator, &ai_denominator).unwrap(); // TODO: double check if the dimension of ai_polynomial is correct
+            let ai_denominator = vec![-get_omega(&vec![E::ScalarField::ZERO; degree]).pow([i as u64]), E::ScalarField::ONE];
+            let ai_polynomial = div(&ai_numerator, &ai_denominator).unwrap();
 
             // li_polynomial is ai_polynomial / a'(w^i), where a'(w^1) = n * (w^i)
             let li_polynomial = scalar_mul(
                 &ai_polynomial,
-                (get_omega(&ai_numerator).pow([i as u64])).div(E::ScalarField::from(degree as u32))
+                (get_omega(&vec![E::ScalarField::ZERO; degree]).pow([i as u64])).div(E::ScalarField::from(degree as u32))
             );
 
             // ui_polynomial is (li_polynomial - 1) / (X - w^i) 
@@ -77,24 +76,17 @@ impl <E: Pairing> ASVC<E> {
             let ui_polynomial = div(&ui_numerator, &ai_denominator).unwrap();
 
             // commit according to crs_g1
-            // TODO: maybe put it into a helper function
-            let mut ai_accumulator = crs_g1[0].mul(ai_polynomial[0]);
-            for j in 1..ai_polynomial.len() {
-                ai_accumulator += crs_g1[j].mul(ai_polynomial[j]);
-            }
-            ai_commitment[i] = ai_accumulator;
+            ai_commitment[i] = crs_g1.iter().zip(ai_polynomial.iter())
+                .map(|(crs, ai_coeff)| crs.mul(ai_coeff))
+                .fold(g1.mul(E::ScalarField::ZERO), |acc, element| acc + element);
 
-            let mut li_accumulator = crs_g1[0].mul(li_polynomial[0]);
-            for j in 1..li_polynomial.len() {
-                li_accumulator += crs_g1[j].mul(li_polynomial[j]);
-            }
-            li_commitment[i] = li_accumulator;
+            li_commitment[i] = crs_g1.iter().zip(li_polynomial.iter())
+                .map(|(crs, li_coeff)| crs.mul(li_coeff))
+                .fold(g1.mul(E::ScalarField::ZERO), |acc, element| acc + element);
 
-            let mut ui_accumulator = crs_g1[0].mul(ui_polynomial[0]);
-            for j in 1..ui_polynomial.len() {
-                ui_accumulator += crs_g1[j].mul(ui_polynomial[j]);
-            }
-            ui_commitment[i] = ui_accumulator;
+            ui_commitment[i] = crs_g1.iter().zip(ui_polynomial.iter())
+                .map(|(crs, ui_coeff)| crs.mul(ui_coeff))
+                .fold(g1.mul(E::ScalarField::ZERO), |acc, element| acc + element);
         }
 
         let update_key = UpdateKey {
@@ -123,7 +115,10 @@ impl <E: Pairing> ASVC<E> {
 
     // commit the lagrange polynomial of the vector
     pub fn vector_commit(&self, vector: &[E::ScalarField]) -> E::G1 {
-        // TODO: check that vector length is equal to l_commitment length
+        // check that vector length is equal to l_commitment length
+        assert_eq!(vector.len(), self.proving_key.li_commitment.len());
+
+        // commit vector
         let mut commitment = self.proving_key.crs.g1[0].mul(E::ScalarField::ZERO);
         for i in 0..vector.len() {
             commitment += self.proving_key.li_commitment[i] * vector[i]
@@ -144,7 +139,7 @@ impl <E: Pairing> ASVC<E> {
             denominator = mul(&denominator, &vec![-omega.pow([i as u64]), E::ScalarField::ONE]);
         }
 
-        // quotient is numerator divided by denomiator, commited by G1
+        // quotient is numerator divided by denominator, commited by G1
         let quotient = div(&numerator, &denominator).unwrap();
         let mut pi = self.proving_key.crs.g1[0] * quotient[0];
         for i in 1..quotient.len() {
@@ -163,7 +158,7 @@ impl <E: Pairing> ASVC<E> {
         pi: E::G1
     ) -> bool {
         // is product of i in indices (X - w^i)
-        let omega = get_omega(&vec![E::ScalarField::ZERO; subvector.len()]); // TODO: check omega
+        let omega = get_omega(&vec![E::ScalarField::ZERO; subvector.len()]);
         let mut denominator = vec![-omega.pow([indices[0] as u64]), E::ScalarField::ONE];
         for i in 1..indices.len() {
             denominator = mul(&denominator, &vec![-omega.pow([i as u64]), E::ScalarField::ONE]);
