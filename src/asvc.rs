@@ -160,9 +160,35 @@ impl <E: Pairing> ASVC<E> {
         commitment: E::G1,
         indices: &[usize],
         subvector: &[E::ScalarField],
-        proof: E::G1
+        pi: E::G1
     ) -> bool {
-        false
+        // is product of i in indices (X - w^i)
+        let omega = get_omega(&vec![E::ScalarField::ZERO; subvector.len()]); // TODO: check omega
+        let mut denominator = vec![-omega.pow([indices[0] as u64]), E::ScalarField::ONE];
+        for i in 1..indices.len() {
+            denominator = mul(&denominator, &vec![-omega.pow([i as u64]), E::ScalarField::ONE]);
+        }
+
+        // commit denominator
+        let mut denominator_commitment = self.verification_key.crs.g2[0].mul(E::ScalarField::ZERO);
+        for i in 0..denominator.len() {
+            denominator_commitment += self.verification_key.crs.g2[i].mul(denominator[i]);
+        }
+
+        // remainer is the product of the lagrange basis of the indices
+        let indices_field: Vec<E::ScalarField> = indices.iter().map(|&i| E::ScalarField::from(i as u32)).collect();
+        let remainder = interpolate(&indices_field, &subvector).unwrap();
+
+        // commit remainder
+        let mut remainder_commitment = self.verification_key.crs.g1[0].mul(E::ScalarField::ZERO);
+        for i in 0..remainder.len() {
+            remainder_commitment += self.verification_key.crs.g1[i].mul(remainder[i]);
+        }
+
+        // verification
+        let lhs = E::pairing(pi, denominator_commitment);
+        let rhs = E::pairing(commitment - remainder_commitment, self.verification_key.crs.g2[0]);
+        lhs == rhs
     }
 
     // aggregate multiple proofs into one subvector commitment
