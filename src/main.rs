@@ -2,6 +2,7 @@ pub mod kzg;
 pub mod asvc;
 pub mod utils;
 use kzg::KZG;
+use asvc::ASVC;
 use utils::evaluate;
 use ark_std::UniformRand;
 use ark_bls12_381::{Bls12_381, Fr, G1Projective as G1, G2Projective as G2};
@@ -29,6 +30,21 @@ fn main() {
 
     // test multi point evaluation
     test_multi_evaluation(&kzg_instance, &poly, commitment);
+
+    // initialize asvc instance
+    let asvc_instance = ASVC::<Bls12_381>::key_gen(
+        G1::rand(&mut rng),
+        G2::rand(&mut rng),
+        degree,
+        secret
+    );
+
+    // generate a random vector and commit to it
+    let vector = vec![Fr::rand(&mut rng); degree];
+    let commitment = asvc_instance.vector_commit(&vector);
+
+    // test vector evaluation
+    test_vector_evaluation(&asvc_instance, &vector, commitment);
 }
 
 pub fn test_single_evaluation(
@@ -70,4 +86,14 @@ pub fn test_multi_evaluation(
     assert!(kzg_instance.verify_multi(&points, &values, commitment, pi));
 
     println!("Multi points evaluation verified!");
+}
+
+pub fn test_vector_evaluation(
+    asvc_instance: &ASVC<Bls12_381>,
+    vector: &[Fr],
+    commitment: G1
+) {
+    assert!(false);
+
+    println!("Vector evaluation verified!");
 }

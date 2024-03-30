@@ -57,7 +57,7 @@ impl <E: Pairing> ASVC<E> {
 
         // ai_numerator is X^n - 1
         // TODO: check omega calculation
-        let mut ai_numerator = vec![E::ScalarField::ZERO; degree];
+        let mut ai_numerator = vec![E::ScalarField::ZERO; degree+1];
         ai_numerator[0] = -E::ScalarField::ONE;
         ai_numerator[degree] = E::ScalarField::ONE;
         for i in 0..degree {
@@ -79,15 +79,21 @@ impl <E: Pairing> ASVC<E> {
             // commit according to crs_g1
             // TODO: maybe put it into a helper function
             let mut ai_accumulator = crs_g1[0].mul(ai_polynomial[0]);
-            let mut li_accumulator = crs_g1[0].mul(li_polynomial[0]);
-            let mut ui_accumulator = crs_g1[0].mul(ui_polynomial[0]);
-            for j in 1..degree {
+            for j in 1..ai_polynomial.len() {
                 ai_accumulator += crs_g1[j].mul(ai_polynomial[j]);
-                li_accumulator += crs_g1[j].mul(li_polynomial[j]);
-                ui_accumulator += crs_g1[j].mul(ui_polynomial[j]);
             }
             ai_commitment[i] = ai_accumulator;
+
+            let mut li_accumulator = crs_g1[0].mul(li_polynomial[0]);
+            for j in 1..li_polynomial.len() {
+                li_accumulator += crs_g1[j].mul(li_polynomial[j]);
+            }
             li_commitment[i] = li_accumulator;
+
+            let mut ui_accumulator = crs_g1[0].mul(ui_polynomial[0]);
+            for j in 1..ui_polynomial.len() {
+                ui_accumulator += crs_g1[j].mul(ui_polynomial[j]);
+            }
             ui_commitment[i] = ui_accumulator;
         }
 
@@ -148,14 +154,14 @@ impl <E: Pairing> ASVC<E> {
         pi     
     }
 
+    // verify a subvector commitment
+    pub fn verify_position(&self, commitment: E::G1, indices: &[usize], subvector: &[E::ScalarField]) -> bool {
+        false
+    }
+
     // aggregate multiple proofs into one subvector commitment
     pub fn aggregate(&self, proofs: Vec<E::G1>) {
 
-    }
-
-    // verify a subvector commitment
-    pub fn verify(&self, commitment: E::G1) -> bool {
-        false
     }
 
 }
