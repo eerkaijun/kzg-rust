@@ -1,4 +1,5 @@
-use ark_ff::Field;
+use ark_ff::{Field, PrimeField};
+use ark_std::log2;
 
 // helper function for polynomial addition
 pub fn add<E:Field>(p1: &[E], p2: &[E]) -> Vec<E> {
@@ -97,4 +98,34 @@ pub fn interpolate<E:Field>(points: &[E], values: &[E]) -> Result<Vec<E>, &'stat
     }
 
     Ok(result)
+}
+
+// helper function to get the roots of unity of a polynomial
+pub fn get_omega<E:PrimeField>(coefficients: &[E]) -> E {
+    let mut coefficients = coefficients.to_vec();
+    let n = coefficients.len() - 1;
+    if !n.is_power_of_two() {
+        let num_coeffs = coefficients.len().checked_next_power_of_two().unwrap();
+        // pad the coefficients with zeros to the nearest power of two
+        for i in coefficients.len()..num_coeffs {
+            coefficients[i] = E::ZERO;
+        }
+    }
+
+    let m = coefficients.len();
+    let exp = log2(m);
+    let mut omega = E::TWO_ADIC_ROOT_OF_UNITY;
+    for _ in exp..E::TWO_ADICITY {
+        omega.square_in_place();
+    }
+    omega
+}
+
+// helper function to multiple a polynomial with a scalar value
+pub fn scalar_mul<E:Field>(poly: &[E], scalar: E) -> Vec<E> {
+    let mut result = Vec::with_capacity(poly.len());
+    for coeff in poly {
+        result.push(*coeff * scalar);
+    }
+    result    
 }
