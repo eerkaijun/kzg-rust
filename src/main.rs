@@ -6,6 +6,7 @@ use asvc::ASVC;
 use utils::evaluate;
 use ark_std::UniformRand;
 use ark_bls12_381::{Bls12_381, Fr, G1Projective as G1, G2Projective as G2};
+use rand::seq::IteratorRandom;
 
 fn main() {
     // initialize kzg instance
@@ -93,7 +94,25 @@ pub fn test_vector_evaluation(
     vector: &[Fr],
     commitment: G1
 ) {
-    assert!(false);
+    // randomly select three items in the vectors and also record their indices
+    let mut rng = ark_std::test_rng();
+    let mut selected_indices = Vec::new();
+    while selected_indices.len() < 3 {
+        let value = (0..=15).choose(&mut rng).unwrap();
+        if !selected_indices.contains(&value) {
+            selected_indices.push(value);
+        }
+    }
+
+    // prove positions for these three selected indices
+    let pi = asvc_instance.prove_position(&selected_indices, &vector);
+
+    // verify the proof
+    let mut subvector = vec![];
+    for &index in &selected_indices {
+        subvector.push(vector[index]);
+    }
+    assert!(asvc_instance.verify_position(commitment, &selected_indices, &subvector, pi));
 
     println!("Vector evaluation verified!");
 }

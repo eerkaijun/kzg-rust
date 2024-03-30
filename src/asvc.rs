@@ -155,7 +155,13 @@ impl <E: Pairing> ASVC<E> {
     }
 
     // verify a subvector commitment
-    pub fn verify_position(&self, commitment: E::G1, indices: &[usize], subvector: &[E::ScalarField]) -> bool {
+    pub fn verify_position(
+        &self,
+        commitment: E::G1,
+        indices: &[usize],
+        subvector: &[E::ScalarField],
+        proof: E::G1
+    ) -> bool {
         false
     }
 
