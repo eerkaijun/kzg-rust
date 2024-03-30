@@ -1,7 +1,7 @@
 use std::ops::{Mul, Div};
 use ark_ff::Field;
 use ark_ec::pairing::Pairing;
-use crate::utils::{get_omega, div, scalar_mul};
+use crate::utils::{get_omega, mul, div, scalar_mul, interpolate};
 
 #[derive(Clone)]
 pub struct CRS<E: Pairing> {
@@ -56,6 +56,7 @@ impl <E: Pairing> ASVC<E> {
         let mut ui_commitment = vec![g1; degree];
 
         // ai_numerator is X^n - 1
+        // TODO: check omega calculation
         let mut ai_numerator = vec![E::ScalarField::ZERO; degree];
         ai_numerator[0] = -E::ScalarField::ONE;
         ai_numerator[degree] = E::ScalarField::ONE;
@@ -125,8 +126,26 @@ impl <E: Pairing> ASVC<E> {
     }
 
     // prove multiple positions in the vector
-    pub fn prove_position(&self, indices: &[E::ScalarField], subvector: &[E::ScalarField]) {
-        
+    pub fn prove_position(&self, indices: &[usize], vector: &[E::ScalarField]) -> E::G1 {
+        // numerator is lagrage interpolation of the vector
+        let points: Vec<E::ScalarField> = (0..vector.len()).map(|i| E::ScalarField::from(i as u32)).collect();
+        let numerator = interpolate(&points, &vector).unwrap();
+
+        // denominator is product of i in indices (X - w^i)
+        let omega = get_omega(&vec![E::ScalarField::ZERO; vector.len()]);
+        let mut denominator = vec![-omega.pow([indices[0] as u64]), E::ScalarField::ONE];
+        for i in 1..indices.len() {
+            denominator = mul(&denominator, &vec![-omega.pow([i as u64]), E::ScalarField::ONE]);
+        }
+
+        // quotient is numerator divided by denomiator, commited by G1
+        let quotient = div(&numerator, &denominator).unwrap();
+        let mut pi = self.proving_key.crs.g1[0] * quotient[0];
+        for i in 1..quotient.len() {
+            pi += self.proving_key.crs.g1[i] * quotient[i];
+        }
+
+        pi     
     }
 
     // aggregate multiple proofs into one subvector commitment
