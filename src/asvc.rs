@@ -1,7 +1,7 @@
 use std::ops::{Mul, Div};
 use ark_ff::Field;
 use ark_ec::pairing::Pairing;
-use crate::utils::{get_omega, mul, div, scalar_mul, interpolate};
+use crate::utils::{get_omega, mul, div, scalar_mul, interpolate, evaluate};
 
 #[derive(Clone)]
 pub struct CRS<E: Pairing> {
@@ -9,6 +9,7 @@ pub struct CRS<E: Pairing> {
     pub g2: Vec<E::G2>
 }
 
+// NOTE: currently not in use (update function not implemented yet)
 #[derive(Clone)]
 pub struct UpdateKey<E: Pairing> {
     pub ai_commitment: Vec<E::G1>,
@@ -64,7 +65,7 @@ impl <E: Pairing> ASVC<E> {
             let ai_denominator = vec![-get_omega(&vec![E::ScalarField::ZERO; degree]).pow([i as u64]), E::ScalarField::ONE];
             let ai_polynomial = div(&ai_numerator, &ai_denominator).unwrap();
 
-            // li_polynomial is ai_polynomial / a'(w^i), where a'(w^1) = n * (w^i)
+            // li_polynomial is ai_polynomial / a'(w^i), where a'(w^i) = n * (w^i)
             let li_polynomial = scalar_mul(
                 &ai_polynomial,
                 (get_omega(&vec![E::ScalarField::ZERO; degree]).pow([i as u64])).div(E::ScalarField::from(degree as u32))
@@ -157,7 +158,7 @@ impl <E: Pairing> ASVC<E> {
         subvector: &[E::ScalarField],
         pi: E::G1
     ) -> bool {
-        // is product of i in indices (X - w^i)
+        // denominator is product of i in indices (X - w^i)
         let omega = get_omega(&vec![E::ScalarField::ZERO; subvector.len()]);
         let mut denominator = vec![-omega.pow([indices[0] as u64]), E::ScalarField::ONE];
         for i in 1..indices.len() {
@@ -187,8 +188,30 @@ impl <E: Pairing> ASVC<E> {
     }
 
     // aggregate multiple proofs into one subvector commitment
-    pub fn aggregate(&self, proofs: Vec<E::G1>) {
+    pub fn aggregate_proofs(&self, indices: &[usize], proofs: Vec<E::G1>) -> E::G1 {
+        // make sure that length of indices is the same as proofs
+        assert_eq!(indices.len(), proofs.len());
 
+        // A(X) is product of i in indices (X - w^i)
+        let omega = get_omega(&vec![E::ScalarField::ZERO; indices.len()]);
+        let mut a_polynomial = vec![-omega.pow([indices[0] as u64]), E::ScalarField::ONE];
+        for i in 1..indices.len() {
+            a_polynomial = mul(&a_polynomial, &vec![-omega.pow([i as u64]), E::ScalarField::ONE]);
+        }
+
+        // A'(X), derivatives of A(X)
+        let mut a_derivative = vec![E::ScalarField::ZERO; a_polynomial.len() - 1];
+        for i in 1..a_polynomial.len() {
+            a_derivative[i - 1] = a_polynomial[i] * E::ScalarField::from(i as u32);
+        }
+
+        let pi = indices.iter().enumerate().map(|(k, &i)|{
+            proofs[k].mul(evaluate(&a_derivative, omega.pow([i as u64])))
+        }).sum::<E::G1>();
+
+        pi
     }
+
+    // TODO: update commmitment and proofs functions
 
 }
