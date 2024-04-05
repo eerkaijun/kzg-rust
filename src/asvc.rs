@@ -1,3 +1,5 @@
+/// NOTE: variable naming is based on notation in https://eprint.iacr.org/2020/527.pdf
+
 use std::ops::{Mul, Div};
 use ark_ff::Field;
 use ark_ec::pairing::Pairing;
