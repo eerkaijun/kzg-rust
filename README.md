@@ -1,8 +1,8 @@
 ## KZG Commitment in Rust
 
 This is a Rust implementation of the KZG commitment scheme. There are two main modules:
-1. `kzg.rs` implements the basic polynomial commitment that allows both opening at a single point and also batch opening (sometimes known as multi proof).
-2. `asvc.rs` implements a vector commitment scheme based on [this paper](https://eprint.iacr.org/2020/527.pdf). It supports proving vector position and also aggregating multiple KZG proofs into a single proof.
+1. `kzg.rs` implements the basic polynomial commitment that allows both opening at a single point and also batch opening (sometimes known as multi proof). Basic explanation [here](https://kaijuneer.medium.com/explaining-kzg-commitment-with-code-walkthrough-216638a620c9). 
+2. `asvc.rs` implements a vector commitment scheme based on [this paper](https://eprint.iacr.org/2020/527.pdf). It supports proving vector position and also aggregating multiple KZG proofs into a single proof. Basic explanation [here](https://kaijuneer.medium.com/intuition-on-kzg-aggregation-d99ddb8813b3).
 
 ### Getting Started
 
